@@ -3,14 +3,21 @@
 
   var appRoot = document.querySelector(".app");
   if (!appRoot || appRoot.getAttribute("data-booted") === "1") return;
+  if (!window.Roses) return;
   appRoot.setAttribute("data-booted", "1");
 
   var ROOT = (function () {
+    function baseFrom(src) {
+      var at = (src || "").lastIndexOf("studio.js");
+      return at === -1 ? "" : src.slice(0, at);
+    }
+    var current = document.currentScript && document.currentScript.getAttribute("src");
+    var fromCurrent = baseFrom(current);
+    if (fromCurrent || (current && current.indexOf("studio.js") !== -1)) return fromCurrent;
     var scripts = document.getElementsByTagName("script");
     for (var i = scripts.length - 1; i >= 0; i--) {
-      var src = scripts[i].getAttribute("src") || "";
-      var at = src.indexOf("studio.js");
-      if (at !== -1) return src.slice(0, at);
+      var found = baseFrom(scripts[i].getAttribute("src") || "");
+      if (found || (scripts[i].getAttribute("src") || "").indexOf("studio.js") !== -1) return found;
     }
     return "";
   })();
@@ -43,6 +50,7 @@
   var speedBtn = document.getElementById("btn-speed");
 
   var runtimeSource = "";
+  var sharedSource = "";
   var defaultSource = "";
   var defaultGame = null;
   var game = { name: "Hearth", params: {} };
@@ -65,9 +73,7 @@
     localStorage.setItem(NONCE_KEY, nonce);
   }
 
-  function clone(value) {
-    return JSON.parse(JSON.stringify(value));
-  }
+  var clone = window.Roses.clone;
 
   function flash(text) {
     flashEl.textContent = text;
@@ -86,8 +92,12 @@
     gutter.textContent = lines.join("\n");
   }
 
+  function hideScriptClose(source) {
+    return source.replace(/<\/script/gi, "<\\/script");
+  }
+
   function srcdoc(runtime) {
-    var safe = runtime.replace(/<\/script/gi, "<\\/script");
+    var safe = hideScriptClose(sharedSource + "\n" + runtime);
     return (
       "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" +
       "html,body{margin:0;height:100%;background:#140f0d;overflow:hidden}" +
@@ -164,39 +174,10 @@
       var key = names[i];
       var sample = defaults[key];
       if (!Object.prototype.hasOwnProperty.call(game.params, key)) game.params[key] = clone(sample);
-      var value = game.params[key];
-      var label = document.createElement("label");
-      label.className = "field" + (value !== null && typeof value === "object" ? " field--json" : "");
-      label.appendChild(document.createTextNode(key));
-      var input;
-      if (value !== null && typeof value === "object") {
-        input = document.createElement("textarea");
-        input.dataset.json = "1";
-        input.spellcheck = false;
-        input.value = JSON.stringify(value, null, 2);
-        if (key === "placements") {
-          var hint = document.createElement("span");
-          hint.className = "hint";
-          hint.textContent = "Each entry is { x, y, mix }. x and y are 0–1. mix is 0 deep rose, 1 paper.";
-          label.appendChild(hint);
-        }
-      } else if (typeof value === "boolean") {
-        input = document.createElement("input");
-        input.type = "checkbox";
-        input.checked = !!value;
-      } else if (typeof sample === "number") {
-        input = document.createElement("input");
-        input.type = "number";
-        input.step = Number.isInteger(sample) ? "1" : "any";
-        input.value = value;
-      } else {
-        input = document.createElement("input");
-        input.type = "text";
-        input.value = value == null ? "" : String(value);
-      }
-      input.dataset.key = key;
-      label.appendChild(input);
-      fields.appendChild(label);
+      var hint = key === "placements"
+        ? "Each entry is { x, y, mix }. x and y are 0–1. mix is 0 deep rose, 1 paper."
+        : "";
+      window.Roses.appendField(fields, key, game.params[key], sample, hint);
     }
   }
 
@@ -330,43 +311,34 @@
     setTimeout(function () { URL.revokeObjectURL(link.href); }, 2500);
   }
 
-  var EXPORT_CSS = [
-    "html,body{margin:0;height:100%;background:#140f0d;color:#f3eee4;",
-    "font-family:Palatino,'Palatino Linotype','Iowan Old Style','Liberation Serif',Georgia,serif}",
-    "canvas{display:block;width:100%;height:100%;touch-action:none}",
-    "#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;gap:12px;",
-    "align-items:flex-start;padding:10px 12px;pointer-events:none}",
-    "#hud button,#hud summary,#hud label,#hud input,#hud textarea,#hud details{pointer-events:auto}",
-    "#title{margin:8px 0 0;font-size:22px;font-weight:500;font-style:italic;text-shadow:0 1px 10px #140f0d}",
-    ".hud-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}",
-    "#hud button,#hud summary{background:transparent;color:#f3eee4;border:1px solid rgba(243,238,228,.35);",
-    "min-height:44px;padding:0 12px;font:inherit;cursor:pointer}",
-    "#readout{position:fixed;left:12px;bottom:12px;margin:0;font-variant-numeric:tabular-nums;",
-    "font-size:12px;letter-spacing:.08em;color:rgba(243,238,228,.75);pointer-events:none}",
-    "#err{position:fixed;left:12px;right:12px;bottom:40px;margin:0;padding:10px 12px;background:#f3eee4;color:#6e2426}",
-    ".panel{position:relative}",
-    ".sheet{position:absolute;right:0;top:48px;width:min(320px,86vw);background:#f3eee4;color:#211815;",
-    "padding:12px;border:1px solid rgba(33,24,21,.14);max-height:62vh;overflow:auto}",
-    ".sheet button{display:block;width:100%;margin:0 0 8px;color:#211815;background:#fffdf8;border:1px solid rgba(33,24,21,.18)}",
-    ".field,.check{display:flex;flex-direction:column;gap:4px;font-size:11px;letter-spacing:.12em;",
-    "text-transform:uppercase;margin:0 0 8px}",
-    ".check{flex-direction:row;align-items:center;text-transform:none;letter-spacing:0;font-size:14px}",
-    ".sheet input,.sheet textarea{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#211815;",
-    "background:#fffdf8;border:1px solid rgba(33,24,21,.2);padding:8px;width:100%}",
-    ".hint{font-size:13px;line-height:1.4;text-transform:none;letter-spacing:0;color:#8a7d72}",
-    ".is-bad{border-color:#8f3030}",
-  ].join("");
+  var EXPORT_CSS = "html,body{margin:0;height:100%;background:#140f0d;color:#f3eee4;font-family:Palatino,'Palatino Linotype','Iowan Old Style','Liberation Serif',Georgia,serif}\n" +
+    "canvas{display:block;width:100%;height:100%;touch-action:none}\n" +
+    "#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:10px 12px;pointer-events:none}\n" +
+    "#hud button,#hud summary,#hud label,#hud input,#hud textarea,#hud details{pointer-events:auto}\n" +
+    "#title{margin:8px 0 0;font-size:22px;font-weight:500;font-style:italic;text-shadow:0 1px 10px #140f0d}\n" +
+    ".hud-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}\n" +
+    "#hud button,#hud summary{background:transparent;color:#f3eee4;border:1px solid rgba(243,238,228,.35);min-height:44px;padding:0 12px;font:inherit;cursor:pointer}\n" +
+    "#readout{position:fixed;left:12px;bottom:12px;margin:0;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.08em;color:rgba(243,238,228,.75);pointer-events:none}\n" +
+    "#err{position:fixed;left:12px;right:12px;bottom:40px;margin:0;padding:10px 12px;background:#f3eee4;color:#6e2426}\n" +
+    ".panel{position:relative}\n" +
+    ".sheet{position:absolute;right:0;top:48px;width:min(320px,86vw);background:#f3eee4;color:#211815;padding:12px;border:1px solid rgba(33,24,21,.14);max-height:62vh;overflow:auto}\n" +
+    ".sheet button{display:block;width:100%;margin:0 0 8px;color:#211815;background:#fffdf8;border:1px solid rgba(33,24,21,.18)}\n" +
+    ".field,.check{display:flex;flex-direction:column;gap:4px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px}\n" +
+    ".check{flex-direction:row;align-items:center;text-transform:none;letter-spacing:0;font-size:14px}\n" +
+    ".sheet input,.sheet textarea{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#211815;background:#fffdf8;border:1px solid rgba(33,24,21,.2);padding:8px;width:100%}\n" +
+    ".hint{font-size:13px;line-height:1.4;text-transform:none;letter-spacing:0;color:#8a7d72}\n" +
+    ".is-bad{border-color:#8f3030}\n";
 
   function buildExportHtml(kind) {
     var isGame = kind === "game";
     var title = isGame ? game.name || "Game" : (lastMeta && lastMeta.name) || "Engine";
     var params = isGame ? game.params || {} : (lastMeta && lastMeta.defaults) || {};
-    var safeSource = sourceEl.value.replace(/<\/script/gi, "<\\/script");
+    var safeSource = hideScriptClose(sourceEl.value);
     var packed = JSON.stringify({ kind: isGame ? "game" : "engine", title: title, params: params }).replace(
       /<\/script/gi,
       "<\\/script",
     );
-    var safeRuntime = runtimeSource.replace(/<\/script/gi, "<\\/script");
+    var safeRuntime = hideScriptClose(sharedSource + "\n" + runtimeSource);
     var html =
       "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
       "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">" +
@@ -384,9 +356,7 @@
       "</script><script>" +
       safeRuntime +
       "</script></body></html>";
-    var manifest =
-      'name = "' + tomlQuote(title) + '"\n' +
-      'source_code_url = "https://github.com/AETHER-ENGINEERS/xdc-roses-for-vector"\n';
+    var manifest = 'name = "' + tomlQuote(title) + '"\n';
     return { html: html, manifest: manifest, title: title, filename: slug(title) + (isGame ? ".xdc" : "-engine.xdc") };
   }
 
@@ -560,13 +530,15 @@
   }
 
   Promise.all([
+    fetch(asset("shared.js")).then(function (res) { return res.text(); }),
     fetch(asset("runtime.js")).then(function (res) { return res.text(); }),
     fetch(asset("samples/mote.js")).then(function (res) { return res.text(); }),
     fetch(asset("samples/hearth.json")).then(function (res) { return res.json(); }),
   ]).then(function (parts) {
-    runtimeSource = parts[0];
-    defaultSource = parts[1];
-    defaultGame = parts[2];
+    sharedSource = parts[0];
+    runtimeSource = parts[1];
+    defaultSource = parts[2];
+    defaultGame = parts[3];
     var saved = loadDraft();
     if (saved && typeof saved.source === "string" && saved.game) {
       sourceEl.value = saved.source;

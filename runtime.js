@@ -34,6 +34,7 @@
   var lastStats = 0;
   var lastPeek = 0;
   var webxdcApi = null;
+  var cursorId = "c-" + Math.random().toString(36).slice(2);
 
   function post(msg) {
     if (!preview || !window.parent) return;
@@ -80,7 +81,7 @@
   }
 
   function clone(value) {
-    return JSON.parse(JSON.stringify(value));
+    return window.Roses.clone(value);
   }
 
   function boot(source, params) {
@@ -111,13 +112,19 @@
 
   function applyParams(params) {
     if (!engine) return;
+    var userPaused = !running && !broken;
     state = engine.create(clone(params || {}));
     if (!state || typeof state !== "object") throw new Error("create() must return a JSON object.");
     state.tick = 0;
     broken = false;
+    running = !follow && !userPaused;
     view.fresh = true;
+    acc = 0;
     var err = document.getElementById("err");
     if (err) err.hidden = true;
+    var pauseBtn = document.getElementById("pause");
+    if (pauseBtn) pauseBtn.textContent = running ? "Pause" : "Run";
+    post({ type: "running", running: running });
   }
 
   function snapshotInput() {
@@ -443,38 +450,7 @@
     var params = play.params || {};
     var names = Object.keys(params);
     for (var i = 0; i < names.length; i++) {
-      var key = names[i];
-      var value = params[key];
-      var label = el("label", "field");
-      label.appendChild(document.createTextNode(key));
-      if (value !== null && typeof value === "object") {
-        var area = document.createElement("textarea");
-        area.rows = 6;
-        area.dataset.key = key;
-        area.dataset.json = "1";
-        area.value = JSON.stringify(value, null, 2);
-        label.appendChild(area);
-      } else if (typeof value === "boolean") {
-        var box = document.createElement("input");
-        box.type = "checkbox";
-        box.dataset.key = key;
-        box.checked = value;
-        label.appendChild(box);
-      } else if (typeof value === "number") {
-        var num = document.createElement("input");
-        num.type = "number";
-        num.dataset.key = key;
-        num.step = Number.isInteger(value) ? "1" : "any";
-        num.value = String(value);
-        label.appendChild(num);
-      } else {
-        var text = document.createElement("input");
-        text.type = "text";
-        text.dataset.key = key;
-        text.value = value == null ? "" : String(value);
-        label.appendChild(text);
-      }
-      sheet.appendChild(label);
+      window.Roses.appendField(sheet, names[i], params[names[i]], params[names[i]], "");
     }
   }
 
@@ -599,13 +575,31 @@
     }
   }
 
+  function valueKind(value) {
+    if (value === null) return "null";
+    if (Array.isArray(value)) return "array";
+    return typeof value;
+  }
+
+  function sameShape(local, remote) {
+    if (!local || typeof local !== "object" || Array.isArray(local)) return false;
+    var localKeys = Object.keys(local).sort();
+    var remoteKeys = Object.keys(remote).sort();
+    if (localKeys.join("\0") !== remoteKeys.join("\0")) return false;
+    for (var i = 0; i < localKeys.length; i++) {
+      if (valueKind(local[localKeys[i]]) !== valueKind(remote[remoteKeys[i]])) return false;
+    }
+    return true;
+  }
+
   function copyState(raw) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    if (!state || !raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     if (!Number.isFinite(Number(raw.tick))) return null;
     try {
       var copy = JSON.parse(JSON.stringify(raw));
       if (!copy || typeof copy !== "object" || Array.isArray(copy)) return null;
       if (!Number.isFinite(Number(copy.tick))) return null;
+      if (!sameShape(state, copy)) return null;
       return copy;
     } catch (err) {
       return null;
@@ -663,7 +657,7 @@
     lastPtrSent = now;
     var payload = JSON.stringify({
       t: "ptr",
-      id: (webxdcApi && webxdcApi.selfAddr) || "local",
+      id: cursorId,
       x: Math.round(pointer.nx * 1000) / 1000,
       y: Math.round(pointer.ny * 1000) / 1000,
       d: pointer.down ? 1 : 0,
@@ -710,9 +704,10 @@
           } catch (err) {
             return;
           }
-          if (!msg || msg.t !== "ptr" || typeof msg.id !== "string" || !msg.id) return;
+          if (!msg || msg.t !== "ptr" || typeof msg.id !== "string") return;
+          if (msg.id === cursorId || msg.id.length < 2 || msg.id.length > 40) return;
           if (!Number.isFinite(msg.x) || !Number.isFinite(msg.y)) return;
-          if (webxdcApi && msg.id === webxdcApi.selfAddr) return;
+          if (!peers[msg.id] && Object.keys(peers).length >= 24) return;
           peers[msg.id] = { x: msg.x, y: msg.y, d: msg.d, seen: performance.now() };
         });
       } catch (err) {
