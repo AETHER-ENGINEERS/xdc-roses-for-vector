@@ -28,6 +28,7 @@
   var follow = false;
   var broadcast = false;
   var broadcastNoted = false;
+  var oversizeNoted = false;
   var lastBroadcast = 0;
   var lastPtrSent = 0;
   var lastStats = 0;
@@ -196,6 +197,10 @@
     if (!last) last = now;
     var dt = Math.min(100, now - last);
     last = now;
+    var peerIds = Object.keys(peers);
+    for (var p = 0; p < peerIds.length; p++) {
+      if (now - peers[peerIds[p]].seen > 5000) delete peers[peerIds[p]];
+    }
     resize();
     if (running && engine && state && !broken && !follow) {
       acc += dt * speed;
@@ -344,7 +349,9 @@
         fail(err);
       }
     } else if (msg.type === "speed") {
-      speed = Number(msg.speed) || 1;
+      var nextSpeed = Number(msg.speed);
+      if (!Number.isFinite(nextSpeed)) nextSpeed = 1;
+      speed = Math.max(0.25, Math.min(8, nextSpeed));
     }
   });
 
@@ -528,14 +535,20 @@
     if (pull) {
       pull.addEventListener("click", function () {
         if (!lastRemote) return;
-        state = lastRemote;
-        view.fresh = true;
+        try {
+          adoptRemote();
+        } catch (err) {
+          fail(err);
+        }
       });
     }
     if (broad) {
       broad.addEventListener("change", function () {
         broadcast = broad.checked;
-        if (!broadcast) broadcastNoted = false;
+        if (!broadcast) {
+          broadcastNoted = false;
+          oversizeNoted = false;
+        }
       });
     }
     if (followBox) {
@@ -577,6 +590,39 @@
     }
   }
 
+  function note(message) {
+    post({ type: "warn", message: message });
+    var node = document.getElementById("err");
+    if (node) {
+      node.hidden = false;
+      node.textContent = message;
+    }
+  }
+
+  function copyState(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    if (!Number.isFinite(Number(raw.tick))) return null;
+    try {
+      var copy = JSON.parse(JSON.stringify(raw));
+      if (!copy || typeof copy !== "object" || Array.isArray(copy)) return null;
+      if (!Number.isFinite(Number(copy.tick))) return null;
+      return copy;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function adoptRemote() {
+    var copy = copyState(lastRemote);
+    if (!copy) {
+      note("The received state does not match this engine.");
+      return false;
+    }
+    state = copy;
+    view.fresh = true;
+    return true;
+  }
+
   function publish(withInfo) {
     if (!webxdcApi || !state) return;
     var payload = { kind: "roses-state", nonce: selfNonce, state: state };
@@ -586,7 +632,14 @@
     } catch (err) {
       return;
     }
-    if (json.length > 60000) return;
+    if (json.length > 60000) {
+      if (!oversizeNoted) {
+        oversizeNoted = true;
+        note("State too large to broadcast.");
+      }
+      return;
+    }
+    oversizeNoted = false;
     var update = { payload: payload };
     if (withInfo) update.info = String((play && play.title) || "Snapshot").slice(0, 48);
     try {
@@ -626,10 +679,18 @@
         var payload = update && update.payload;
         if (!payload || payload.kind !== "roses-state" || payload.nonce === selfNonce) return;
         if (!payload.state || typeof payload.state !== "object") return;
-        lastRemote = payload.state;
+        var incoming = copyState(payload.state);
+        if (!incoming) {
+          note("The received state does not match this engine.");
+          return;
+        }
+        lastRemote = incoming;
         if (follow) {
-          state = payload.state;
-          view.fresh = true;
+          try {
+            adoptRemote();
+          } catch (err) {
+            fail(err);
+          }
         }
       }, 0);
     } catch (err) {}
@@ -649,7 +710,8 @@
           } catch (err) {
             return;
           }
-          if (!msg || msg.t !== "ptr" || !msg.id) return;
+          if (!msg || msg.t !== "ptr" || typeof msg.id !== "string" || !msg.id) return;
+          if (!Number.isFinite(msg.x) || !Number.isFinite(msg.y)) return;
           if (webxdcApi && msg.id === webxdcApi.selfAddr) return;
           peers[msg.id] = { x: msg.x, y: msg.y, d: msg.d, seen: performance.now() };
         });

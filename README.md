@@ -4,7 +4,7 @@ Responsive Open Systems & Engines Studio. A [WebxDC](https://webxdc.org) that ru
 
 ROSES is the studio. An engine is one JavaScript document (`createEngine`) that decides what is possible. A game is that engine plus a name, parameter values, and placements. Export writes a separate `.xdc`. The exported app does not call back to the studio.
 
-**Status:** 0.0.1. One document, a live stage, game parameters, and two exports (engine sandbox, or a game with the current values baked in). The sample engine is Mote. The sample game is Hearth.
+**Status:** 0.0.2. One document, a live stage, game parameters, and two exports (engine sandbox, or a game with the current values baked in). The sample engine is Mote. The sample game is Hearth. 0.0.2 fixes exported titles, warns when a snapshot is too large to send, drops stale cursors, and refuses a snapshot that is not a state object before Follow or Pull applies it. Applying a chat draft says that it will run the code.
 
 **License:** https://github.com/AETHER-ENGINEERS/AETHER-ENGINEERS/blob/main/LICENSE
 
@@ -18,9 +18,9 @@ This is a sibling of [vector-xdc-forge](https://github.com/AETHER-ENGINEERS/vect
 
 ## Drop-in
 
-Release asset: `xdc-roses-for-vector-0.0.1.xdc`
+Release asset: `xdc-roses-for-vector-0.0.2.xdc`
 
-The same file is at `artifacts/xdc-roses-for-vector-0.0.1.xdc`. Attach it in a Vector chat and tap **Start**.
+The same file is at `artifacts/xdc-roses-for-vector-0.0.2.xdc`. Attach it in a Vector chat and tap **Start**.
 
 Rebuild it with:
 
@@ -34,7 +34,7 @@ Browser check, no Vector: serve this directory and open `index.html`. The shim s
 
 ---
 
-## What 0.0.1 does
+## What 0.0.2 does
 
 | Piece | Role |
 |---|---|

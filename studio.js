@@ -279,6 +279,8 @@
       stageError.hidden = false;
       stageError.textContent = msg.message || "The engine stopped.";
       setRunning(false);
+    } else if (msg.type === "warn") {
+      flash(msg.message || "Warning.");
     } else if (msg.type === "stats") {
       statTick.textContent = "tick " + msg.tick;
       statCount.textContent = msg.count + " entities";
@@ -370,7 +372,7 @@
       "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">" +
       "<title>" +
       title.replace(/[&<>]/g, function (ch) {
-        return { "&": "&", "<": "<", ">": ">" }[ch];
+        return { "&": "&" + "amp;", "<": "&" + "lt;", ">": "&" + "gt;" }[ch];
       }) +
       "</title><script src=\"webxdc.js\"></script><style>" +
       EXPORT_CSS +
