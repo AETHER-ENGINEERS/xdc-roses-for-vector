@@ -41,11 +41,7 @@ The latest version of this license is always the most applicable, make sure to c
   <div class="app">
     <header class="mast">
       <div class="brand">
-        <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
-          <rect width="32" height="32" rx="2" fill="#211815"/>
-          <circle cx="16" cy="16" r="9" fill="none" stroke="#f3eee4" stroke-width="1.5"/>
-          <circle cx="16" cy="16" r="3.2" fill="#8f3030"/>
-        </svg>
+        <img class="logo" width="44" height="44" alt="">
         <div>
           <h1>ROSES</h1>
           <p class="sub">Responsive Open Systems & Engines Studio</p>
@@ -53,6 +49,46 @@ The latest version of this license is always the most applicable, make sure to c
       </div>
       <p class="engine-name" id="engine-name">Reading the engine</p>
       <div class="mast-actions">
+        <div class="pop">
+          <button type="button" id="btn-theme" aria-expanded="false" aria-controls="theme-menu">Theme</button>
+          <div class="menu theme-menu" id="theme-menu" hidden>
+            <p class="theme-label">Theme</p>
+            <div class="swatches" id="theme-swatches" role="group" aria-label="Themes"></div>
+            <div class="custom" id="custom-fields" hidden>
+              <label class="hex">Ground
+                <span class="hex-row">
+                  <input type="color" data-key="ground" aria-label="Ground color">
+                  <input type="text" data-hex="ground" spellcheck="false" maxlength="7" autocomplete="off" aria-label="Ground hex">
+                </span>
+              </label>
+              <label class="hex">Ink
+                <span class="hex-row">
+                  <input type="color" data-key="ink" aria-label="Ink color">
+                  <input type="text" data-hex="ink" spellcheck="false" maxlength="7" autocomplete="off" aria-label="Ink hex">
+                </span>
+              </label>
+              <label class="hex">Accent
+                <span class="hex-row">
+                  <input type="color" data-key="accent" aria-label="Accent color">
+                  <input type="text" data-hex="accent" spellcheck="false" maxlength="7" autocomplete="off" aria-label="Accent hex">
+                </span>
+              </label>
+              <label class="hex">Second
+                <span class="hex-row">
+                  <input type="color" data-key="second" aria-label="Second color">
+                  <input type="text" data-hex="second" spellcheck="false" maxlength="7" autocomplete="off" aria-label="Second hex">
+                </span>
+              </label>
+            </div>
+            <label class="hex">Interface
+              <select id="font-ui" aria-label="Interface font"></select>
+            </label>
+            <label class="hex">Editor
+              <select id="font-code" aria-label="Editor font"></select>
+            </label>
+          </div>
+        </div>
+        <div class="pop">
         <button type="button" id="btn-export" aria-expanded="false" aria-controls="export-menu">Export</button>
         <div class="menu" id="export-menu" hidden>
           <button type="button" id="export-engine">
@@ -63,6 +99,7 @@ The latest version of this license is always the most applicable, make sure to c
             <span class="mi">Game .xdc</span>
             <span class="mh">The same engine, with this name and these parameters.</span>
           </button>
+        </div>
         </div>
       </div>
     </header>
@@ -75,7 +112,7 @@ The latest version of this license is always the most applicable, make sure to c
       <section class="doc-pane" aria-label="Engine document">
         <div class="pane-bar">
           <h2>Engine</h2>
-          <span class="doc-state" id="doc-state">live</span>
+          <span class="doc-state" id="doc-state" data-state="live">live</span>
         </div>
         <p class="contract">One document defines what is possible. The game, beside the stage, decides what happens.</p>
         <div class="editor">
@@ -133,6 +170,7 @@ The latest version of this license is always the most applicable, make sure to c
       <span id="flash"></span>
     </footer>
   </div>
+  <script src="theme.js"></script>
   <script src="shared.js"></script>
   <script src="zip.js"></script>
   <script src="studio.js"></script>

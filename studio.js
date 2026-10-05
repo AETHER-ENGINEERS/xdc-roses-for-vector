@@ -26,6 +26,9 @@
     return ROOT + path;
   }
 
+  var logo = document.querySelector(".logo");
+  if (logo) logo.src = asset("logo.png");
+
   var KEY = "roses.draft.v1";
   var NONCE_KEY = "roses.nonce";
   var sourceEl = document.getElementById("source");
@@ -125,15 +128,20 @@
     return clone(game.params || {});
   }
 
+  function setDocState(value) {
+    docState.textContent = value;
+    docState.dataset.state = value;
+  }
+
   function applyNow() {
     clearTimeout(editTimer);
-    docState.textContent = broken ? "error" : "live";
+    setDocState(broken ? "error" : "live");
     send({ type: "boot", source: sourceEl.value, params: activeParams() });
     saveSoon();
   }
 
   function scheduleEdit() {
-    docState.textContent = "editing";
+    setDocState("editing");
     clearTimeout(editTimer);
     editTimer = setTimeout(applyNow, 650);
     saveSoon();
@@ -243,7 +251,7 @@
     stageError.hidden = true;
     engineName.textContent = meta.name || "Untitled engine";
     document.title = (meta.name || "Engine") + " — ROSES";
-    docState.textContent = "live";
+    setDocState("live");
     var sig = Object.keys(meta.defaults || {}).sort().join("|");
     if (sig !== fieldSig) {
       fieldSig = sig;
@@ -262,7 +270,7 @@
       onMeta(msg.meta || {});
     } else if (msg.type === "error") {
       broken = true;
-      docState.textContent = "error";
+      setDocState("error");
       stageError.hidden = false;
       stageError.textContent = msg.message || "The engine stopped.";
       setRunning(false);
@@ -559,13 +567,17 @@
   });
   exportBtn.addEventListener("click", function (ev) {
     ev.stopPropagation();
+    var themeMenu = document.getElementById("theme-menu");
+    var themeBtn = document.getElementById("btn-theme");
+    if (themeMenu) themeMenu.hidden = true;
+    if (themeBtn) themeBtn.setAttribute("aria-expanded", "false");
     menu.hidden = !menu.hidden;
     exportBtn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
   });
   document.getElementById("export-engine").addEventListener("click", function () { pack("engine"); });
   document.getElementById("export-game").addEventListener("click", function () { pack("game"); });
   document.addEventListener("click", function (ev) {
-    if (!menu.hidden && !exportBtn.parentNode.contains(ev.target)) closeMenu();
+    if (!menu.hidden && !exportBtn.contains(ev.target) && !menu.contains(ev.target)) closeMenu();
   });
   document.addEventListener("keydown", function (ev) {
     if (ev.key === "Escape") closeMenu();

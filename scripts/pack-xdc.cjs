@@ -8,10 +8,12 @@ const root = path.join(__dirname, "..");
 const names = [
   "shared.js",
   "index.html",
+  "theme.js",
   "studio.css",
   "studio.js",
   "runtime.js",
   "zip.js",
+  "logo.png",
   "icon.png",
   "LICENSE",
   "manifest.toml",
@@ -27,6 +29,6 @@ const zip = buildZip(
 
 const outDir = path.join(root, "artifacts");
 fs.mkdirSync(outDir, { recursive: true });
-const out = path.join(outDir, "xdc-roses-for-vector-0.0.5.xdc");
+const out = path.join(outDir, "xdc-roses-for-vector-0.0.6.xdc");
 fs.writeFileSync(out, zip);
 process.stdout.write(out + " " + zip.length + "\n");
