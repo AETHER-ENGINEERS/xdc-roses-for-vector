@@ -513,8 +513,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 .swatches { display: flex; flex-direction: column; gap: 4px; }
 
-.swatch {
-  display: flex;
+.menu button.swatch {
+  flex-direction: row;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -589,6 +589,19 @@ button:disabled { opacity: 0.45; cursor: default; }
   .stage-pane { height: 42vh; min-height: 240px; }
   .editor { height: 420px; min-height: 420px; flex: none; }
   .rules { max-height: none; }
+  .menu {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    top: 68px;
+    width: auto;
+    min-width: 0;
+    max-height: calc(100vh - 84px);
+    max-height: calc(100dvh - 84px);
+    overflow: auto;
+    z-index: 30;
+  }
+  .theme-menu { width: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

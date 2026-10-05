@@ -4,7 +4,7 @@ Responsive Open Systems & Engines Studio. A [WebxDC](https://webxdc.org) that ru
 
 ROSES is the studio. An engine is one JavaScript document (`createEngine`) that decides what is possible. A game is that engine plus a name, parameter values, and placements. Export writes a separate `.xdc`. The exported app does not call back to the studio.
 
-**Status:** 0.0.6. One document, a live stage, game parameters, and two exports. Sample engine Mote, sample game Hearth. The studio opens on Night garden: royal purple and forest green on black. Theme, beside Export, also has Hearth, Inkwell, Tide, a custom set of hex colors, and a choice of interface and editor fonts. The choice stays on this device. Exported apps keep their own stage.
+**Status:** 0.0.7. One document, a live stage, game parameters, and two exports. Sample engine Mote, sample game Hearth. The studio opens on Night garden. On a phone, Theme and Export open as a panel across the screen instead of a menu that runs off the edge.
 
 **License:** https://github.com/AETHER-ENGINEERS/AETHER-ENGINEERS/blob/main/LICENSE
 
@@ -18,9 +18,9 @@ This is a sibling of [vector-xdc-forge](https://github.com/AETHER-ENGINEERS/vect
 
 ## Drop-in
 
-Release asset: `xdc-roses-for-vector-0.0.6.xdc`
+Release asset: `xdc-roses-for-vector-0.0.7.xdc`
 
-The same file is at `artifacts/xdc-roses-for-vector-0.0.6.xdc`. Attach it in a Vector chat and tap **Start**.
+The same file is at `artifacts/xdc-roses-for-vector-0.0.7.xdc`. Attach it in a Vector chat and tap **Start**.
 
 Rebuild it with:
 
