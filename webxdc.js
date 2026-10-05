@@ -58,12 +58,12 @@
     },
     setUpdateListener: function (cb, serial) {
       listener = typeof cb === "function" ? cb : null;
-      if (!listener) return;
       var start = serial || 0;
-      var list = load();
-      for (var i = 0; i < list.length; i++) {
-        if (list[i].serial > start) listener(list[i]);
-      }
+      var queued = listener ? load().filter(function (item) { return item.serial > start; }) : [];
+      return Promise.resolve().then(function () {
+        if (cb !== listener || !listener) return;
+        for (var i = 0; i < queued.length; i++) listener(queued[i]);
+      });
     },
     sendToChat: function () {
       return Promise.resolve();

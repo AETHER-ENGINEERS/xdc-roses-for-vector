@@ -407,7 +407,14 @@
   }
 
   function pushDraft() {
-    var payload = { kind: "roses-draft", nonce: nonce, source: sourceEl.value, game: game };
+    var payload = {
+      kind: "roses-draft",
+      nonce: nonce,
+      source: sourceEl.value,
+      game: game,
+      senderName: window.webxdc && window.webxdc.selfName ? String(window.webxdc.selfName).slice(0, 48) : "",
+      senderAddr: window.webxdc && window.webxdc.selfAddr ? String(window.webxdc.selfAddr).slice(0, 80) : "",
+    };
     var size = 0;
     try {
       size = JSON.stringify(payload).length;
@@ -424,7 +431,12 @@
       flash("Saved on this device.");
       return;
     }
-    window.webxdc.sendUpdate({ payload: payload, info: "ROSES draft" }, "ROSES draft");
+    try {
+      window.webxdc.sendUpdate({ payload: payload, info: "ROSES draft" }, "ROSES draft");
+    } catch (err) {
+      flash("The chat refused the draft.");
+      return;
+    }
     flash(window.webxdc.__rosesShim ? "Draft kept in the local shim." : "Draft sent to the chat.");
   }
 
@@ -561,13 +573,46 @@
   window.addEventListener("message", onMessage);
 
   if (window.webxdc && typeof window.webxdc.setUpdateListener === "function") {
-    window.webxdc.setUpdateListener(function (update) {
-      var payload = update && update.payload;
-      if (!payload || payload.kind !== "roses-draft" || payload.nonce === nonce) return;
-      if (typeof payload.source !== "string") return;
+    var draftSettled = false;
+    var heldDraft = null;
+    var heldDraftSerial = 0;
+    var bannerText = document.getElementById("banner-text");
+
+    function showDraft(payload) {
       pendingDraft = payload;
+      var name = typeof payload.senderName === "string"
+        ? payload.senderName.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 48)
+        : "";
+      if (bannerText) {
+        bannerText.textContent = name
+          ? "A draft arrived from " + name + ". Applying it runs that code on this device."
+          : "A draft arrived from the chat. Applying it runs that code on this device.";
+      }
       banner.hidden = false;
-    }, 0);
+    }
+
+    function finishDrafts() {
+      if (draftSettled) return;
+      draftSettled = true;
+      if (heldDraft) showDraft(heldDraft);
+    }
+
+    function onDraft(update) {
+      var payload = update && update.payload;
+      var usable = payload && payload.kind === "roses-draft" && payload.nonce !== nonce && typeof payload.source === "string";
+      if (!draftSettled) {
+        if (usable && (update.serial || 0) >= heldDraftSerial) {
+          heldDraftSerial = update.serial || 0;
+          heldDraft = payload;
+        }
+        return;
+      }
+      if (usable) showDraft(payload);
+    }
+
+    var draftsDone = window.webxdc.setUpdateListener(onDraft, 0);
+    if (draftsDone && typeof draftsDone.then === "function") draftsDone.then(finishDrafts, finishDrafts);
+    else finishDrafts();
   }
 
   Promise.all([

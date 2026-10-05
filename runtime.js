@@ -25,10 +25,12 @@
   var channel = null;
   var peers = {};
   var lastRemote = null;
+  var remoteMismatch = false;
   var follow = false;
   var broadcast = false;
   var broadcastNoted = false;
   var oversizeNoted = false;
+  var lastSendNote = "";
   var lastBroadcast = 0;
   var lastPtrSent = 0;
   var lastStats = 0;
@@ -532,7 +534,10 @@
     if (push) push.addEventListener("click", function () { publish(true); });
     if (pull) {
       pull.addEventListener("click", function () {
-        if (!lastRemote) return;
+        if (!lastRemote) {
+          if (remoteMismatch) note("The received state does not match this engine.");
+          return;
+        }
         try {
           adoptRemote();
         } catch (err) {
@@ -546,6 +551,7 @@
         if (!broadcast) {
           broadcastNoted = false;
           oversizeNoted = false;
+          lastSendNote = "";
         }
       });
     }
@@ -554,6 +560,7 @@
         follow = followBox.checked;
         running = !follow && !broken;
         if (pause) pause.textContent = running ? "Pause" : "Run";
+        if (follow && remoteMismatch && !lastRemote) note("The received state does not match this engine.");
       });
     }
     var sheet = document.getElementById("rule-fields");
@@ -638,6 +645,27 @@
     return true;
   }
 
+  function noteSend(message) {
+    if (lastSendNote === message) return;
+    lastSendNote = message;
+    oversizeNoted = true;
+    note(message);
+  }
+
+  function clearSendNote() {
+    lastSendNote = "";
+    oversizeNoted = false;
+    var sentWarn = document.getElementById("warn");
+    if (
+      sentWarn &&
+      (sentWarn.textContent === "State too large to broadcast." ||
+        sentWarn.textContent === "State could not be sent." ||
+        sentWarn.textContent === "The chat refused the snapshot.")
+    ) {
+      sentWarn.hidden = true;
+    }
+  }
+
   function publish(withInfo) {
     if (!webxdcApi || !state) return;
     var payload = { kind: "roses-state", nonce: selfNonce, state: state };
@@ -645,34 +673,20 @@
     try {
       json = JSON.stringify(payload);
     } catch (err) {
-      if (!oversizeNoted) {
-        oversizeNoted = true;
-        note("State could not be sent.");
-      }
+      noteSend("State could not be sent.");
       return;
     }
     if (json.length > 60000) {
-      if (!oversizeNoted) {
-        oversizeNoted = true;
-        note("State too large to broadcast.");
-      }
+      noteSend("State too large to broadcast.");
       return;
     }
-    oversizeNoted = false;
     var update = { payload: payload };
     if (withInfo) update.info = String((play && play.title) || "Snapshot").slice(0, 48);
     try {
       webxdcApi.sendUpdate(update, (play && play.title) || "ROSES");
-      var sentWarn = document.getElementById("warn");
-      if (
-        sentWarn &&
-        (sentWarn.textContent === "State too large to broadcast." ||
-          sentWarn.textContent === "State could not be sent.")
-      ) {
-        sentWarn.hidden = true;
-      }
+      clearSendNote();
     } catch (err) {
-      /* The chat may refuse sends. The local stage keeps running. */
+      noteSend("The chat refused the snapshot.");
     }
   }
 
@@ -701,17 +715,17 @@
   }
 
   function wireNet() {
-    try {
-      webxdcApi.setUpdateListener(function (update) {
-        var payload = update && update.payload;
-        if (!payload || payload.kind !== "roses-state" || payload.nonce === selfNonce) return;
-        if (!payload.state || typeof payload.state !== "object") return;
-        var incoming = copyState(payload.state);
-        if (!incoming) {
-          note("The received state does not match this engine.");
-          return;
-        }
-        lastRemote = incoming;
+    var replaySettled = false;
+    var held = null;
+    var heldSerial = 0;
+    var heldBad = false;
+
+    function finishReplay() {
+      if (replaySettled) return;
+      replaySettled = true;
+      if (held) {
+        lastRemote = held;
+        remoteMismatch = false;
         if (follow) {
           try {
             adoptRemote();
@@ -719,7 +733,61 @@
             fail(err);
           }
         }
-      }, 0);
+        return;
+      }
+      if (heldBad) {
+        lastRemote = null;
+        remoteMismatch = true;
+      }
+    }
+
+    function remember(update) {
+      if (!state) return;
+      var payload = update && update.payload;
+      if (!payload || payload.kind !== "roses-state" || payload.nonce === selfNonce) return;
+      if (!payload.state || typeof payload.state !== "object") return;
+      if ((update.serial || 0) < heldSerial) return;
+      heldSerial = update.serial || 0;
+      var incoming = copyState(payload.state);
+      if (incoming) {
+        held = incoming;
+        heldBad = false;
+      } else {
+        held = null;
+        heldBad = true;
+      }
+    }
+
+    function onUpdate(update) {
+      if (!replaySettled) {
+        remember(update);
+        return;
+      }
+      var payload = update && update.payload;
+      if (!payload || payload.kind !== "roses-state" || payload.nonce === selfNonce) return;
+      if (!payload.state || typeof payload.state !== "object") return;
+      var incoming = copyState(payload.state);
+      if (!incoming) {
+        lastRemote = null;
+        remoteMismatch = true;
+        note("The received state does not match this engine.");
+        return;
+      }
+      remoteMismatch = false;
+      lastRemote = incoming;
+      if (follow) {
+        try {
+          adoptRemote();
+        } catch (err) {
+          fail(err);
+        }
+      }
+    }
+
+    try {
+      var done = webxdcApi.setUpdateListener(onUpdate, 0);
+      if (done && typeof done.then === "function") done.then(finishReplay, finishReplay);
+      else finishReplay();
     } catch (err) {}
     if (typeof webxdcApi.joinRealtimeChannel === "function") {
       try {
@@ -766,13 +834,19 @@
         serial += 1;
         var record = { payload: update.payload, info: update.info, serial: serial, max_serial: serial };
         updates.push(record);
+        for (var i = 0; i < updates.length; i++) updates[i].max_serial = serial;
         if (listener) listener(record);
       },
       setUpdateListener: function (cb, start) {
         listener = cb;
+        var queued = [];
         for (var i = 0; i < updates.length; i++) {
-          if (updates[i].serial > (start || 0)) cb(updates[i]);
+          if (updates[i].serial > (start || 0)) queued.push(updates[i]);
         }
+        return Promise.resolve().then(function () {
+          if (cb !== listener || !listener) return;
+          for (var j = 0; j < queued.length; j++) listener(queued[j]);
+        });
       },
       joinRealtimeChannel: function () {
         return { setListener: function () {}, send: function () {}, leave: function () {} };
@@ -804,7 +878,6 @@
     }
     buildHud();
     wireTransport();
-    ensureWebxdc();
     var source = "";
     try {
       source = JSON.parse((srcEl && srcEl.textContent) || "\"\"");
@@ -817,6 +890,7 @@
     } catch (err) {
       fail(err);
     }
+    ensureWebxdc();
   }
 
   if (preview) {
