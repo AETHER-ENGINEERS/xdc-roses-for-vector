@@ -51,10 +51,12 @@
     running = false;
     var message = err && err.message ? err.message : String(err);
     post({ type: "error", message: message });
-    var el = document.getElementById("err");
-    if (el) {
-      el.hidden = false;
-      el.textContent = message;
+    var warn = document.getElementById("warn");
+    if (warn) warn.hidden = true;
+    var node = document.getElementById("err");
+    if (node) {
+      node.hidden = false;
+      node.textContent = message;
     }
     var pauseBtn = document.getElementById("pause");
     if (pauseBtn) pauseBtn.textContent = "Run";
@@ -95,6 +97,8 @@
     acc = 0;
     var err = document.getElementById("err");
     if (err) err.hidden = true;
+    var warn = document.getElementById("warn");
+    if (warn) warn.hidden = true;
     var pauseBtn = document.getElementById("pause");
     if (pauseBtn) pauseBtn.textContent = running ? "Pause" : "Run";
     post({
@@ -122,6 +126,8 @@
     acc = 0;
     var err = document.getElementById("err");
     if (err) err.hidden = true;
+    var warn = document.getElementById("warn");
+    if (warn) warn.hidden = true;
     var pauseBtn = document.getElementById("pause");
     if (pauseBtn) pauseBtn.textContent = running ? "Pause" : "Run";
     post({ type: "running", running: running });
@@ -199,6 +205,13 @@
     ctx.restore();
   }
 
+  var sizeDirty = true;
+  var seenDpr = -1;
+  var watchSize = typeof ResizeObserver === "function";
+  if (watchSize) {
+    new ResizeObserver(function () { sizeDirty = true; }).observe(canvas);
+  }
+
   function frame(now) {
     requestAnimationFrame(frame);
     if (!last) last = now;
@@ -208,7 +221,12 @@
     for (var p = 0; p < peerIds.length; p++) {
       if (now - peers[peerIds[p]].seen > 5000) delete peers[peerIds[p]];
     }
-    resize();
+    var dprNow = Math.min(window.devicePixelRatio || 1, 2);
+    if (!watchSize || sizeDirty || dprNow !== seenDpr) {
+      resize();
+      seenDpr = dprNow;
+      sizeDirty = false;
+    }
     if (running && engine && state && !broken && !follow) {
       acc += dt * speed;
       var stepMs = engine.tickMs || 50;
@@ -392,7 +410,11 @@
     var err = el("p", null, "");
     err.id = "err";
     err.hidden = true;
+    var warn = el("p", null, "");
+    warn.id = "warn";
+    warn.hidden = true;
     document.body.appendChild(readout);
+    document.body.appendChild(warn);
     document.body.appendChild(err);
   }
 
@@ -568,11 +590,10 @@
 
   function note(message) {
     post({ type: "warn", message: message });
-    var node = document.getElementById("err");
-    if (node) {
-      node.hidden = false;
-      node.textContent = message;
-    }
+    var node = document.getElementById("warn");
+    if (!node) return;
+    node.hidden = false;
+    node.textContent = message;
   }
 
   function valueKind(value) {
@@ -624,6 +645,10 @@
     try {
       json = JSON.stringify(payload);
     } catch (err) {
+      if (!oversizeNoted) {
+        oversizeNoted = true;
+        note("State could not be sent.");
+      }
       return;
     }
     if (json.length > 60000) {
@@ -638,6 +663,14 @@
     if (withInfo) update.info = String((play && play.title) || "Snapshot").slice(0, 48);
     try {
       webxdcApi.sendUpdate(update, (play && play.title) || "ROSES");
+      var sentWarn = document.getElementById("warn");
+      if (
+        sentWarn &&
+        (sentWarn.textContent === "State too large to broadcast." ||
+          sentWarn.textContent === "State could not be sent.")
+      ) {
+        sentWarn.hidden = true;
+      }
     } catch (err) {
       /* The chat may refuse sends. The local stage keeps running. */
     }
@@ -772,8 +805,15 @@
     buildHud();
     wireTransport();
     ensureWebxdc();
+    var source = "";
     try {
-      boot((srcEl && srcEl.textContent) || "", play.params);
+      source = JSON.parse((srcEl && srcEl.textContent) || "\"\"");
+    } catch (err) {
+      source = "";
+    }
+    if (typeof source !== "string") source = "";
+    try {
+      boot(source, play.params);
     } catch (err) {
       fail(err);
     }

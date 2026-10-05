@@ -27,6 +27,6 @@ const zip = buildZip(
 
 const outDir = path.join(root, "artifacts");
 fs.mkdirSync(outDir, { recursive: true });
-const out = path.join(outDir, "xdc-roses-for-vector-0.0.3.xdc");
+const out = path.join(outDir, "xdc-roses-for-vector-0.0.4.xdc");
 fs.writeFileSync(out, zip);
 process.stdout.write(out + " " + zip.length + "\n");

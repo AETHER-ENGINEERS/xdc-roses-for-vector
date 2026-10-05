@@ -64,6 +64,8 @@
   var pendingDraft = null;
   var gutterLines = 0;
   var editTimer = 0;
+  var iconBytes = null;
+  var iconGen = 0;
   var paramTimer = 0;
   var saveTimer = 0;
   var flashTimer = 0;
@@ -92,20 +94,24 @@
     gutter.textContent = lines.join("\n");
   }
 
-  function hideScriptClose(source) {
-    return source.replace(/<\/script/gi, "<\\/script");
+  function jsonForHtml(value) {
+    return JSON.stringify(value)
+      .replace(/</g, "\\u003c")
+      .replace(/\u2028/g, "\\u2028")
+      .replace(/\u2029/g, "\\u2029");
   }
 
   function srcdoc(runtime) {
-    var safe = hideScriptClose(sharedSource + "\n" + runtime);
+    var bundle = jsonForHtml(sharedSource + "\n" + runtime);
     return (
       "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" +
       "html,body{margin:0;height:100%;background:#140f0d;overflow:hidden}" +
       "canvas{display:block;width:100%;height:100%;touch-action:none}" +
       "</style></head><body><canvas id=\"stage\" tabindex=\"0\"></canvas>" +
-      "<script>window.__ROSES_PREVIEW__=true;</script><script>" +
-      safe +
-      "</script></body></html>"
+      "<script type=\"application/json\" id=\"roses-bundle\">" + bundle + "</script>" +
+      "<script>window.__ROSES_PREVIEW__=true;" +
+      "new Function(JSON.parse(document.getElementById(\"roses-bundle\").textContent))();</script>" +
+      "</body></html>"
     );
   }
 
@@ -288,7 +294,11 @@
   }
 
   function tomlQuote(value) {
-    return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"').slice(0, 80);
+    return String(value || "")
+      .replace(/[\u0000-\u001f]/g, " ")
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .slice(0, 80);
   }
 
   function bytesToBase64(bytes) {
@@ -308,7 +318,7 @@
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setTimeout(function () { URL.revokeObjectURL(link.href); }, 2500);
+    setTimeout(function () { URL.revokeObjectURL(link.href); }, 15000);
   }
 
   var EXPORT_CSS = "html,body{margin:0;height:100%;background:#140f0d;color:#f3eee4;font-family:Palatino,'Palatino Linotype','Iowan Old Style','Liberation Serif',Georgia,serif}\n" +
@@ -319,6 +329,7 @@
     ".hud-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}\n" +
     "#hud button,#hud summary{background:transparent;color:#f3eee4;border:1px solid rgba(243,238,228,.35);min-height:44px;padding:0 12px;font:inherit;cursor:pointer}\n" +
     "#readout{position:fixed;left:12px;bottom:12px;margin:0;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.08em;color:rgba(243,238,228,.75);pointer-events:none}\n" +
+    "#warn{position:fixed;left:12px;right:12px;bottom:76px;margin:0;padding:10px 12px;color:#f3eee4;border:1px solid rgba(243,238,228,.35);background:rgba(20,15,13,.88)}\n" +
     "#err{position:fixed;left:12px;right:12px;bottom:40px;margin:0;padding:10px 12px;background:#f3eee4;color:#6e2426}\n" +
     ".panel{position:relative}\n" +
     ".sheet{position:absolute;right:0;top:48px;width:min(320px,86vw);background:#f3eee4;color:#211815;padding:12px;border:1px solid rgba(33,24,21,.14);max-height:62vh;overflow:auto}\n" +
@@ -333,12 +344,7 @@
     var isGame = kind === "game";
     var title = isGame ? game.name || "Game" : (lastMeta && lastMeta.name) || "Engine";
     var params = isGame ? game.params || {} : (lastMeta && lastMeta.defaults) || {};
-    var safeSource = hideScriptClose(sourceEl.value);
-    var packed = JSON.stringify({ kind: isGame ? "game" : "engine", title: title, params: params }).replace(
-      /<\/script/gi,
-      "<\\/script",
-    );
-    var safeRuntime = hideScriptClose(sharedSource + "\n" + runtimeSource);
+    var gameRecord = { kind: isGame ? "game" : "engine", title: title, params: params };
     var html =
       "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
       "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">" +
@@ -349,13 +355,11 @@
       "</title><script src=\"webxdc.js\"></script><style>" +
       EXPORT_CSS +
       "</style></head><body><canvas id=\"stage\" tabindex=\"0\"></canvas><div id=\"hud\"></div>" +
-      "<script id=\"roses-engine\">" +
-      safeSource +
-      "</script><script id=\"roses-game\" type=\"application/json\">" +
-      packed +
-      "</script><script>" +
-      safeRuntime +
-      "</script></body></html>";
+      "<script type=\"application/json\" id=\"roses-engine\">" + jsonForHtml(sourceEl.value) + "</script>" +
+      "<script type=\"application/json\" id=\"roses-game\">" + jsonForHtml(gameRecord) + "</script>" +
+      "<script type=\"application/json\" id=\"roses-runtime\">" + jsonForHtml(sharedSource + "\n" + runtimeSource) + "</script>" +
+      "<script>new Function(JSON.parse(document.getElementById(\"roses-runtime\").textContent))();</script>" +
+      "</body></html>";
     var manifest = 'name = "' + tomlQuote(title) + '"\n';
     return { html: html, manifest: manifest, title: title, filename: slug(title) + (isGame ? ".xdc" : "-engine.xdc") };
   }
@@ -372,7 +376,7 @@
     }
     var built = buildExportHtml(kind);
     Promise.all([
-      fetch(asset("icon.png")).then(function (res) { return res.arrayBuffer(); }),
+      iconBytes ? Promise.resolve(iconBytes) : fetch(asset("icon.png")).then(function (res) { return res.arrayBuffer(); }),
       fetch(asset("LICENSE")).then(function (res) { return res.text(); }),
     ]).then(function (parts) {
       var license = parts[1];
@@ -443,6 +447,9 @@
     game = clone(defaultGame);
     gameName.value = game.name || "Hearth";
     fieldSig = "";
+    iconBytes = null;
+    var iconInput = document.getElementById("game-icon");
+    if (iconInput) iconInput.value = "";
     renderGutter();
     try { localStorage.removeItem(KEY); } catch (err) {}
     applyNow();
@@ -498,6 +505,40 @@
     send({ type: "speed", speed: speed });
   });
   document.getElementById("restore").addEventListener("click", restoreSample);
+  var iconInput = document.getElementById("game-icon");
+  if (iconInput) {
+    iconInput.addEventListener("change", function () {
+      var gen = ++iconGen;
+      var file = iconInput.files && iconInput.files[0];
+      if (!file) {
+        iconBytes = null;
+        return;
+      }
+      if (file.size > 262144) {
+        iconBytes = null;
+        iconInput.value = "";
+        flash("Icon must be a PNG under 256 KB.");
+        return;
+      }
+      file.arrayBuffer().then(function (buf) {
+        if (gen !== iconGen) return;
+        var bytes = new Uint8Array(buf);
+        var png = bytes.length > 8 && bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71;
+        if (!png) {
+          iconBytes = null;
+          iconInput.value = "";
+          flash("That file is not a PNG.");
+          return;
+        }
+        iconBytes = bytes;
+        flash("Icon kept for the next export.");
+      }).catch(function () {
+        if (gen !== iconGen) return;
+        iconBytes = null;
+        flash("The icon could not be read.");
+      });
+    });
+  }
   document.getElementById("btn-sync").addEventListener("click", pushDraft);
   document.getElementById("banner-apply").addEventListener("click", applyDraft);
   document.getElementById("banner-dismiss").addEventListener("click", function () {

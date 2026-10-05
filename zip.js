@@ -36,9 +36,12 @@
     var locals = [];
     var centrals = [];
     var offset = 0;
-    /* 2026-10-03 20:40 */
-    var time = 42240;
-    var date = 23875;
+    var now = new Date();
+    var year = now.getFullYear();
+    if (year < 1980) year = 1980;
+    if (year > 2107) year = 2107;
+    var time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    var date = ((year - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
 
     for (var i = 0; i < files.length; i++) {
       var nameBytes = new TextEncoder().encode(files[i].name);

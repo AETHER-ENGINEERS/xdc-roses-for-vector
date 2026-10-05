@@ -4,7 +4,7 @@ Responsive Open Systems & Engines Studio. A [WebxDC](https://webxdc.org) that ru
 
 ROSES is the studio. An engine is one JavaScript document (`createEngine`) that decides what is possible. A game is that engine plus a name, parameter values, and placements. Export writes a separate `.xdc`. The exported app does not call back to the studio.
 
-**Status:** 0.0.3. One document, a live stage, game parameters, and two exports. Sample engine Mote, sample game Hearth. A snapshot is applied only when its top-level keys and value kinds match the running state. Cursors are anonymous marks: `joinRealtimeChannel` does not say who sent the bytes, so a cursor is not a person's address. A deliberate pause stays paused when a knob changes. An engine that had stopped on an error starts again. Exported apps do not claim the studio repository as their source. Applying a chat draft says that it will run the code.
+**Status:** 0.0.4. One document, a live stage, game parameters, and two exports. Sample engine Mote, sample game Hearth. Engine source is stored as JSON inside the page, so a literal `</script` in the document is not rewritten. Warnings and errors use different lines. An export can carry its own PNG icon. Zip timestamps are the time of packing.
 
 **License:** https://github.com/AETHER-ENGINEERS/AETHER-ENGINEERS/blob/main/LICENSE
 
@@ -18,9 +18,9 @@ This is a sibling of [vector-xdc-forge](https://github.com/AETHER-ENGINEERS/vect
 
 ## Drop-in
 
-Release asset: `xdc-roses-for-vector-0.0.3.xdc`
+Release asset: `xdc-roses-for-vector-0.0.4.xdc`
 
-The same file is at `artifacts/xdc-roses-for-vector-0.0.3.xdc`. Attach it in a Vector chat and tap **Start**.
+The same file is at `artifacts/xdc-roses-for-vector-0.0.4.xdc`. Attach it in a Vector chat and tap **Start**.
 
 Rebuild it with:
 
